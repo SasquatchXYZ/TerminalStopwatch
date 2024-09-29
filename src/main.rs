@@ -1,8 +1,10 @@
 use std::{
     io::stdout,
+    thread::sleep,
+    time::Duration,
     time::Instant,
 };
-
+use chrono::offset::Utc;
 use crossterm::event::{poll, read, Event, KeyCode, KeyEventKind};
 use ratatui::{
     backend::CrosstermBackend,
@@ -63,15 +65,23 @@ impl Stopwatch {
     }
 }
 
-fn main() {
+fn block_with(input: &str) -> Block {
+    Block::default().title(input).borders(Borders::ALL)
+}
+
+fn utc_pretty() -> String {
+    Utc::now().format("%Y/%m/%d %H:%M:%S").to_string()
+}
+
+fn main() -> Result<(), anyhow::Error> {
     let stdout = stdout();
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend).unwrap();
+    let mut terminal = Terminal::new(backend)?;
     let mut stopwatch = Stopwatch::new();
 
     loop {
-        if poll(std::time::Duration::from_millis(0)).unwrap() {
-            if let Event::Key(key_event) = read().unwrap() {
+        if poll(std::time::Duration::from_millis(0))? {
+            if let Event::Key(key_event) = read()? {
                 if let (KeyCode::Enter, KeyEventKind::Press) = (key_event.code, key_event.kind) {
                     stopwatch.next_state();
                 }
@@ -87,20 +97,17 @@ fn main() {
                 let stopwatch_area = layout[0];
                 let utc_time_area = layout[1];
 
-                let stopwatch_block = Block::default().title("Stopwatch").borders(Borders::ALL);
-                let utc_time_block = Block::default().title("UTC Time").borders(Borders::ALL);
+                let stopwatch_block = block_with("Stopwatch");
+                let utc_time_block = block_with("Time in London");
 
                 let stopwatch_text = Paragraph::new(stopwatch.get_time())
                     .block(stopwatch_block);
-                let utc_text = Paragraph::new(
-                    chrono::offset::Utc::now().format("%Y/%m/%d %H:%M:%S").to_string()
-                ).block(utc_time_block);
+                let utc_text = Paragraph::new(utc_pretty()).block(utc_time_block);
 
                 f.render_widget(stopwatch_text, stopwatch_area);
                 f.render_widget(utc_text, utc_time_area);
-            })
-            .unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        terminal.clear().unwrap();
+            })?;
+        sleep(Duration::from_millis(20));
+        terminal.clear()?;
     }
 }
